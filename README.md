@@ -1,2 +1,2 @@
 # LDPlayer-Manager
-LDPlayer Manager
+LDPlayer Manager Python 
