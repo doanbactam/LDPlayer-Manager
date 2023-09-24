@@ -8,7 +8,7 @@ import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QCheckBox, QVBoxLayout, QWidget, QPushButton, QTableWidget, QTableWidgetItem, QInputDialog
 from PyQt5.QtCore import Qt
 
-from Auto import LDPlayer
+from CBAutoHelper import LDPlayer
 
 class MainApp(QMainWindow):
     def __init__(self):
