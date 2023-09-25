@@ -2,6 +2,7 @@ import sys
 import os
 import threading
 import base64
+import logging
 import uiautomator2 as u2
 from PyQt5.QtWidgets import (
     QApplication,
@@ -13,10 +14,11 @@ from PyQt5.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QInputDialog,
+    QHBoxLayout
 )
 from PyQt5.QtCore import Qt
 
-from Auto import LDPlayer
+from CBAutoHelper import LDPlayer
 
 class MainApp(QMainWindow):
     def __init__(self):
@@ -34,27 +36,26 @@ class MainApp(QMainWindow):
         self.devices = self.ldplayer.GetDevices2()  # Get LDPlayer device information
 
         self.tableWidget = QTableWidget(self)
-        self.tableWidget.setColumnCount(8)  # Increased column count to accommodate status columns
+        self.tableWidget.setColumnCount(5)  # Increased column count to accommodate status columns
         self.tableWidget.setHorizontalHeaderLabels(
-            ["Select", "Name", "Index", "ID", "Status", "Start Automation", "Open", "Close", "Rename"]
+            ["Select", "Name", "Index", "ID", "Status"]
         )
 
         self.tableWidget.setColumnWidth(0, 30)
         self.tableWidget.setColumnWidth(2, 30)
         self.tableWidget.setColumnWidth(3, 30)
 
-        self.start_button = QPushButton("Start Automation", self)
-        self.start_button.clicked.connect(self.startAutomation)
-
         layout = QVBoxLayout()
         layout.addWidget(self.tableWidget)
-        layout.addWidget(self.start_button)
 
         central_widget = QWidget()
         central_widget.setLayout(layout)
         self.setCentralWidget(central_widget)
 
         self.populateTable()
+        self.button_panel = ButtonPanel(self)
+
+        layout.addWidget(self.button_panel)
 
     def openLDPlayer(self, emulator_name):
         ld_player = LDPlayer()
@@ -68,37 +69,31 @@ class MainApp(QMainWindow):
         ld_player.Close()
         self.updateDeviceStatus(emulator_name, "Closed")
 
-    def renameLDPlayer(self, emulator_name):
-        ld_player = LDPlayer()
-        ld_player.Info('name', emulator_name)
-        new_name, ok = QInputDialog.getText(self, "Rename LDPlayer", "Enter new name:")
-        if ok:
-            ld_player.Rename(new_name)
+    def startAutomation(self):
+        for device in self.selected_devices:
+            emulator_name = device["name"]
+            threading.Thread(target=self.automationThread, args=(emulator_name,)).start()
+
+
 
     def populateTable(self):
         for index, device in enumerate(self.devices):
-            name_item = QTableWidgetItem(device["name"])
-            index_item = QTableWidgetItem(device["index"])
-            id_item = QTableWidgetItem(device["id"])
-            status_item = QTableWidgetItem("Not Started")  # Initialize status as "Not Started"
+            self.tableWidget.setRowCount(len(self.devices))
+            self.tableWidget.setHorizontalHeaderLabels(["Select", "Name", "Index", "ID", "Status"])
 
-            checkbox = QCheckBox(self)
-            checkbox.stateChanged.connect(self.deviceSelected)
+            self.tableWidget.setColumnWidth(0, 30)
+            self.tableWidget.setColumnWidth(2, 30)
+            self.tableWidget.setColumnWidth(3, 30)
 
-            self.tableWidget.setRowCount(index + 1)
-            self.tableWidget.setCellWidget(index, 0, checkbox)
-            self.tableWidget.setItem(index, 1, name_item)
-            self.tableWidget.setItem(index, 2, index_item)
-            self.tableWidget.setItem(index, 3, id_item)
-            self.tableWidget.setItem(index, 4, status_item)
+            for index, device in enumerate(self.devices):
+                checkbox = QCheckBox(self)
+                checkbox.stateChanged.connect(self.deviceSelected)
 
-            open_button = self.createButton("Open", lambda _, dev=device: self.openLDPlayer(dev["name"]))
-            close_button = self.createButton("Close", lambda _, dev=device: self.closeLDPlayer(dev["name"]))
-            rename_button = self.createButton("Rename", lambda _, dev=device: self.renameLDPlayer(dev["name"]))
-
-            self.tableWidget.setCellWidget(index, 5, open_button)
-            self.tableWidget.setCellWidget(index, 6, close_button)
-            self.tableWidget.setCellWidget(index, 7, rename_button)
+                self.tableWidget.setCellWidget(index, 0, checkbox)
+                self.tableWidget.setItem(index, 1, QTableWidgetItem(device["name"]))
+                self.tableWidget.setItem(index, 2, QTableWidgetItem(device["index"]))
+                self.tableWidget.setItem(index, 3, QTableWidgetItem(device["id"]))
+                self.tableWidget.setItem(index, 4, QTableWidgetItem("Chưa khởi động"))
 
     def createButton(self, text, callback):
         button = QPushButton(text, self)
@@ -115,36 +110,60 @@ class MainApp(QMainWindow):
         else:
             self.selected_devices.remove(device)
 
-    def startAutomation(self):
-        for device in self.selected_devices:
-            emulator_name = device["name"]
-            threading.Thread(target=self.automationThread, args=(emulator_name,)).start()
-
-    def automationThread(self, emulator_name):
+    def automationThread(self, emulator_name:str):
         try:
-            ld_player = LDPlayer()
-            ld_player.Info('name', emulator_name)  # Use 'name' instead of 'index'
-            ld_player.Start()
+            with u2.connect() as d:
+                app_package_name = "com.highbrow.games.dv"  # Replace with the actual package name
+                d.app_start(app_package_name)
 
-            d = u2.connect()  # Initialize uiautomator2 client
-            app_package_name = "com.highbrow.games.dv"  # Replace with the actual package name
-            d.app_start(app_package_name)
-
-            # Implement your automation logic using uiautomator2 here
-            # For example, you can interact with UI elements, simulate clicks, etc.
+                # Implement your automation logic using uiautomator2 here
+                # For example, you can interact with UI elements, simulate clicks, etc.
 
             self.updateDeviceStatus(emulator_name, "Completed")
-            ld_player.Close()
         except Exception as e:
             print("Error occurred while automating the app: {}".format(e))
             self.updateDeviceStatus(emulator_name, "Error")
-            ld_player.Close()
 
     def updateDeviceStatus(self, emulator_name, status):
         index = next((i for i, device in enumerate(self.devices) if device["name"] == emulator_name), None)
         if index is not None:
             status_item = self.tableWidget.item(index, 4)
             status_item.setText(status)
+class ButtonPanel(QWidget):
+    def __init__(self, main_app):
+        super().__init__()
+        self.main_app = main_app
+
+        self.open_button = QPushButton("Open", self)
+        self.close_button = QPushButton("Close", self)
+        self.start_automation_button = QPushButton("Start Automation", self)
+
+        layout = QHBoxLayout()
+        layout.addWidget(self.open_button)
+        layout.addWidget(self.close_button)
+        layout.addWidget(self.start_automation_button)
+
+        self.setLayout(layout)
+
+        self.connectSlots()
+
+    def connectSlots(self):
+        self.open_button.clicked.connect(self.openDevices)
+        self.close_button.clicked.connect(self.closeDevices)
+        self.start_automation_button.clicked.connect(self.startAutomation)
+
+    def openDevices(self):
+        for device in self.main_app.selected_devices:
+            emulator_name = device["name"]
+            self.main_app.openLDPlayer(emulator_name)
+
+    def closeDevices(self):
+        for device in self.main_app.selected_devices:
+            emulator_name = device["name"]
+            self.main_app.closeLDPlayer(emulator_name)
+
+    def startAutomation(self):
+        self.main_app.startAutomation()
 
 def main():
     app = QApplication(sys.argv)
