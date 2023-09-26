@@ -1,2 +1,2 @@
 # LDPlayer-Manager
-LDPlayer Manager Python 
+Use UiAutomator 2 & ChatGPT for LDPlayer automation
