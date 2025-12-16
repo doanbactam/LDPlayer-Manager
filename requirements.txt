@@ -1,0 +1,15 @@
+# Python dependencies for CBAutoHelper
+# Upgraded to latest versions as of December 2025
+
+# GUI Framework
+PyQt5==5.15.11
+
+# Android UI Automation
+uiautomator2==3.5.0
+
+# Image Processing
+opencv-python==4.12.0.88
+numpy==2.2.6  # Compatible with opencv-python 4.12.0.88 (requires numpy<2.3.0,>=2)
+
+# XML/HTML Processing
+lxml==6.0.2
